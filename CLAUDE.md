@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A PDF image-extension analyzer: upload a PDF, and it reports which image formats (jpg/jp2/tiff/jbig2/png) are embedded inside, on which pages, with thumbnail previews where possible. Two-package monorepo, no shared root `package.json` — `client/` and `server/` are run and installed independently.
 
+### Target users
+
+Editors at a textbook publishing company (교과서 제작 회사의 편집자). They handle PDFs containing a mix of scanned and digitally-produced figures/photos and need to know what image formats are embedded — e.g. to catch low-quality scans (CCITT/JBIG2 fax-style bilevel images) mixed in with proper photos (JPEG), or to figure out what to re-export before print. Keep this workflow in mind when prioritizing features or UI wording (e.g. the "미리보기 불가" formats are exactly the ones most likely to need manual follow-up).
+
 ## Commands
 
 ```bash
