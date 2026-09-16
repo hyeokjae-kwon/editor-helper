@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-A PDF image-extension analyzer: upload a PDF, and it reports which image formats (jpg/jp2/tiff/jbig2/png) are embedded inside, on which pages, with thumbnail previews where possible. Two-package monorepo, no shared root `package.json` — `client/` and `server/` are run and installed independently.
+A PDF image color-model analyzer: upload a PDF, and it reports which images inside are *not* CMYK (Gray/RGB/Indexed/etc.), on which pages, with thumbnail previews where possible. Two-package monorepo, no shared root `package.json` — `client/` and `server/` are run and installed independently.
 
 ### Target users
 
-Editors at a textbook publishing company (교과서 제작 회사의 편집자). They handle PDFs containing a mix of scanned and digitally-produced figures/photos and need to know what image formats are embedded — e.g. to catch low-quality scans (CCITT/JBIG2 fax-style bilevel images) mixed in with proper photos (JPEG), or to figure out what to re-export before print. Keep this workflow in mind when prioritizing features or UI wording (e.g. the "미리보기 불가" formats are exactly the ones most likely to need manual follow-up).
+Editors at a textbook publishing company (교과서 제작 회사의 편집자). Print output must be CMYK; images embedded as RGB, Gray, or other non-CMYK color spaces need to be caught and re-exported before print. Keep this workflow in mind when prioritizing features or UI wording — the app deliberately surfaces only non-CMYK images rather than a full inventory, and the "미리보기 불가" formats (CCITT/JBIG2 bilevel scans) are exactly the ones most likely to need manual follow-up.
 
 ## Commands
 
@@ -34,17 +34,17 @@ The frontend calls the backend via `VITE_API_BASE` (defaults to `http://localhos
 
 ### Backend (`server/`, Node ESM + Express)
 
-- `src/index.js` — single Express app. One route: `POST /api/analyze`, accepting a `multipart/form-data` upload with field name `pdf` (via `multer`, in-memory storage, 50MB limit). Delegates to `pdfAnalyzer.js` and returns JSON.
-- `src/pdfAnalyzer.js` — the core logic. Given a PDF buffer, it uses `pdf-lib` to walk every page's `Resources/XObject` dictionary and inspect each image XObject's `Filter` chain directly (not pdfjs-style full rendering):
-  - Terminal image filters (`DCTDecode`, `JPXDecode`, `CCITTFaxDecode`, `JBIG2Decode`) map straight to an extension (jpg/jp2/tiff/jbig2). For DCT/JPX the raw stream bytes *are* a valid standalone image file, so they're returned directly as a base64 data URL preview.
-  - Streams with only generic filters (`FlateDecode`, etc., no terminal image filter) are raw pixel bitmaps — classified as `png`. If the color space resolves to 8-bit Gray or RGB, the raw bytes are manually packed into an RGBA buffer and re-encoded as an actual PNG via `pngjs` for the preview (see `buildPngDataUrl`). Indexed/CMYK/other bit depths currently get an extension label but no preview.
-  - CCITT/JBIG2 images get an extension label but no preview (would require a dedicated fax/JBIG2 decoder — out of scope).
-  - Results are grouped by extension across the whole document (`{ ext, count, pageCount, pages }`) as well as returned as a flat per-image list (`{ id, page, ext, width, height, filters, previewDataUrl }`).
+- `src/index.js` — single Express app. One route: `POST /api/analyze`, accepting a `multipart/form-data` upload with field name `pdf` (via `multer`, in-memory storage, 50MB limit). Delegates to `pdfAnalyzer.js` and returns JSON. The uploaded file's `originalname` is re-decoded from `latin1` to `utf8` before being returned as `fileName` — multer/busboy decode multipart filenames as latin1 by default, which mangles non-ASCII (e.g. Korean) filenames otherwise.
+- `src/pdfAnalyzer.js` — the core logic. Given a PDF buffer, it uses `pdf-lib` to walk every page's `Resources/XObject` dictionary and inspect each image XObject directly (not pdfjs-style full rendering):
+  - `resolveColorSpace()` reads the image dict's `ColorSpace` entry and resolves it to a `{ model, channels, bitsPerComponent, isIndexed, isCmyk }` shape — handling direct names (`DeviceGray`/`DeviceRGB`/`DeviceCMYK`/`Lab`), `ICCBased` (via its `N` component count), `Indexed` (recursing into the base color space), and `Separation`/`DeviceN`. CCITT/JBIG2 streams without an explicit `ColorSpace` default to `Gray` per spec.
+  - `classifyImage()` combines that with the `Filter` chain to also produce a physical format label (`ext`: jpg/jp2/tiff/jbig2/png) and a preview when possible: DCT/JPX streams are valid standalone image bytes and are returned directly as a data URL; raw bitmap streams (only generic filters like `FlateDecode`) are re-packed into an RGBA buffer and re-encoded as PNG via `pngjs` when 8-bit Gray or RGB (see `buildPngDataUrl`); CCITT/JBIG2 get no preview (would need a dedicated fax/JBIG2 decoder — out of scope).
+  - `analyzePdf()` groups images by color model across the whole document (`colorModels: [{ model, isCmyk, count, pageCount, pages }]`) and returns a flat per-image list (`images: [{ id, page, ext, colorModel, isCmyk, width, height, filters, previewDataUrl }]`) plus `nonCmykCount`.
 
-When extending format support (e.g. real Indexed-color or CMYK preview, or LZW/ASCII85-wrapped images), the extension point is `classifyImage()` in `pdfAnalyzer.js` — it decides `ext` and `previewDataUrl` per image; `readColorSpaceInfo()` resolves PDF ColorSpace objects (including `ICCBased`/`Indexed`/`DeviceN` indirection) to a channel count.
+When extending this (e.g. real preview for CMYK/Indexed images, or LZW/ASCII85-wrapped images), the extension points are `resolveColorSpaceValue()` (color space → model/isCmyk) and `classifyImage()` (per-image `ext`/preview) in `pdfAnalyzer.js`.
 
 ### Frontend (`client/`, React 19 + Vite)
 
-- Single-page app, no router. `src/App.jsx` holds all state (selected file, analysis result, loading/error) and does the fetch to `/api/analyze` directly with `FormData`.
-- Renders two views from one API response: an extension summary table (`result.extensions`: ext / image count / page count / page numbers) and a preview grid (`result.images`), where entries without `previewDataUrl` show a "미리보기 불가" placeholder instead of an `<img>`.
+- Single-page app, no router. `src/App.jsx` holds all state (selected file, analysis result, loading/error) and does the fetch to `/api/analyze` directly with `FormData`. A 초기화(reset) button clears file/result/error state and resets the native file input via a `ref` (needed since `<input type="file">` is uncontrolled).
+- Renders two views from one API response, both **filtered to non-CMYK images only** (`result.colorModels`/`result.images` filtered by `!isCmyk`): a color-model summary table (model / image count / page count / page numbers) and a preview section, where entries without `previewDataUrl` show a "미리보기 불가" placeholder instead of an `<img>`. `result.nonCmykCount` / `result.imageCount` drive the top summary line.
+- The preview section groups non-CMYK images by page (`imagesByPage`, built client-side from the flat `images` list) with a page-number heading per group, and within each group lays images out in a fixed 3-column grid (`.preview-grid` in `App.css`).
 - Styling is plain CSS (`App.css`, `index.css`) using CSS custom properties defined in `index.css` (`--accent`, `--border`, `--bg`, etc.) with a `prefers-color-scheme: dark` override block — reuse these variables rather than hardcoding colors so dark mode keeps working.

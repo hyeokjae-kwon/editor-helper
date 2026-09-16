@@ -82,9 +82,18 @@
   font-weight: 600;
 }
 
+.preview-page-group {
+  margin-bottom: 24px;
+}
+
+.preview-page-title {
+  margin: 0 0 10px;
+  color: var(--text-h);
+}
+
 .preview-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
 }
 

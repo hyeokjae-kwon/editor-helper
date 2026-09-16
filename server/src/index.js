@@ -21,7 +21,10 @@ app.post('/api/analyze', upload.single('pdf'), async (req, res) => {
 
   try {
     const result = await analyzePdf(req.file.buffer);
-    res.json({ fileName: req.file.originalname, ...result });
+    // multer/busboy decode multipart filenames as latin1 by default, so a
+    // UTF-8 filename (e.g. Korean) sent by the browser comes through mangled.
+    const fileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    res.json({ fileName, ...result });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'PDF 분석 중 오류가 발생했습니다.' });

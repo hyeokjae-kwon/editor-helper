@@ -50,37 +50,74 @@ function getNumber(dict, key, fallback = null) {
   return value instanceof PDFNumber ? value.asNumber() : fallback;
 }
 
-// Returns { channels, bitsPerComponent } for a raw (unencoded) image bitmap.
-function readColorSpaceInfo(dict, context) {
-  const bitsPerComponent = getNumber(dict, 'BitsPerComponent', 8);
-  let colorSpace = dict.lookup(PDFName.of('ColorSpace'));
-  if (colorSpace && !(colorSpace instanceof PDFName) && !(colorSpace instanceof PDFArray)) {
-    colorSpace = context.lookup(colorSpace);
+// A PDF dict entry may be a direct Name/Array or an indirect reference to one.
+function normalizeColorSpaceEntry(entry, context) {
+  if (entry && !(entry instanceof PDFName) && !(entry instanceof PDFArray)) {
+    return context.lookup(entry);
+  }
+  return entry;
+}
+
+// Resolves a ColorSpace entry to a human-readable model name plus channel
+// count and whether it's (ultimately) CMYK. Recurses for Indexed color spaces
+// so the CMYK check reflects the palette's base color space, not "Indexed".
+function resolveColorSpaceValue(rawColorSpace, context) {
+  const colorSpace = normalizeColorSpaceEntry(rawColorSpace, context);
+  if (!colorSpace) {
+    return { model: 'Unknown', channels: null, isIndexed: false, isCmyk: false };
   }
 
-  let channels = 1;
   if (colorSpace instanceof PDFName) {
     const csName = colorSpace.decodeText();
-    if (csName === 'DeviceRGB' || csName === 'CalRGB') channels = 3;
-    else if (csName === 'DeviceCMYK') channels = 4;
-    else channels = 1;
-  } else if (colorSpace instanceof PDFArray) {
+    if (csName === 'DeviceGray' || csName === 'CalGray') {
+      return { model: 'Gray', channels: 1, isIndexed: false, isCmyk: false };
+    }
+    if (csName === 'DeviceRGB' || csName === 'CalRGB') {
+      return { model: 'RGB', channels: 3, isIndexed: false, isCmyk: false };
+    }
+    if (csName === 'DeviceCMYK') {
+      return { model: 'CMYK', channels: 4, isIndexed: false, isCmyk: true };
+    }
+    if (csName === 'Lab') {
+      return { model: 'Lab', channels: 3, isIndexed: false, isCmyk: false };
+    }
+    return { model: csName, channels: null, isIndexed: false, isCmyk: false };
+  }
+
+  if (colorSpace instanceof PDFArray) {
     const kind = nameOf(colorSpace.lookup(0, PDFName));
     if (kind === 'ICCBased') {
       const stream = context.lookup(colorSpace.get(1));
-      const n = stream && stream.dict ? getNumber(stream.dict, 'N', 3) : 3;
-      channels = n;
-    } else if (kind === 'Indexed') {
-      channels = 1; // palette lookup not resolved; preview skipped for indexed images
-    } else if (kind === 'DeviceN') {
-      const names = colorSpace.lookup(1, PDFArray);
-      channels = names ? names.size() : 4;
-    } else {
-      channels = 3;
+      const n = stream && stream.dict ? getNumber(stream.dict, 'N', null) : null;
+      if (n === 1) return { model: 'Gray', channels: 1, isIndexed: false, isCmyk: false };
+      if (n === 3) return { model: 'RGB', channels: 3, isIndexed: false, isCmyk: false };
+      if (n === 4) return { model: 'CMYK', channels: 4, isIndexed: false, isCmyk: true };
+      return { model: 'ICC', channels: n, isIndexed: false, isCmyk: false };
     }
+    if (kind === 'Indexed') {
+      const baseInfo = resolveColorSpaceValue(colorSpace.get(1), context);
+      return { model: `Indexed(${baseInfo.model})`, channels: 1, isIndexed: true, isCmyk: baseInfo.isCmyk };
+    }
+    if (kind === 'Separation') {
+      return { model: 'Separation', channels: 1, isIndexed: false, isCmyk: false };
+    }
+    if (kind === 'DeviceN') {
+      const names = colorSpace.lookup(1, PDFArray);
+      return { model: 'DeviceN', channels: names ? names.size() : null, isIndexed: false, isCmyk: false };
+    }
+    return { model: kind ?? 'Unknown', channels: null, isIndexed: false, isCmyk: false };
   }
 
-  return { channels, bitsPerComponent, isIndexed: colorSpace instanceof PDFArray && nameOf(colorSpace.lookup(0, PDFName)) === 'Indexed' };
+  return { model: 'Unknown', channels: null, isIndexed: false, isCmyk: false };
+}
+
+// Returns { model, channels, bitsPerComponent, isIndexed, isCmyk } describing
+// an image XObject's declared color space.
+function resolveColorSpace(dict, context) {
+  const bitsPerComponent = getNumber(dict, 'BitsPerComponent', 8);
+  const colorSpaceEntry = dict.lookup(PDFName.of('ColorSpace'));
+  const info = resolveColorSpaceValue(colorSpaceEntry, context);
+  return { ...info, bitsPerComponent };
 }
 
 function applyGenericFilter(bytes, filterName) {
@@ -127,6 +164,23 @@ function classifyImage(xobj, context) {
   const width = getNumber(dict, 'Width');
   const height = getNumber(dict, 'Height');
 
+  let colorInfo;
+  try {
+    colorInfo = resolveColorSpace(dict, context);
+  } catch {
+    colorInfo = { model: 'Unknown', channels: null, isIndexed: false, isCmyk: false, bitsPerComponent: null };
+  }
+  // CCITT fax / JBIG2 streams are inherently bilevel; the PDF spec expects
+  // DeviceGray for them even when the ColorSpace entry is omitted.
+  if (
+    colorInfo.model === 'Unknown' &&
+    (filterNames.includes('CCITTFaxDecode') || filterNames.includes('JBIG2Decode'))
+  ) {
+    colorInfo = { ...colorInfo, model: 'Gray', isCmyk: false };
+  }
+  const colorModel = colorInfo.model;
+  const isCmyk = colorInfo.isCmyk;
+
   let bytes = xobj.contents;
   let terminalFilter = null;
 
@@ -144,6 +198,8 @@ function classifyImage(xobj, context) {
       width,
       height,
       filters: filterNames,
+      colorModel,
+      isCmyk,
       previewDataUrl: null,
     };
   }
@@ -160,6 +216,8 @@ function classifyImage(xobj, context) {
       width,
       height,
       filters: filterNames,
+      colorModel,
+      isCmyk,
       previewDataUrl,
     };
   }
@@ -167,7 +225,7 @@ function classifyImage(xobj, context) {
   // No image-specific filter: this is a raw bitmap stream (or was only Flate-compressed).
   let previewDataUrl = null;
   try {
-    const { channels, bitsPerComponent, isIndexed } = readColorSpaceInfo(dict, context);
+    const { channels, bitsPerComponent, isIndexed } = colorInfo;
     if (!isIndexed && bitsPerComponent === 8 && (channels === 1 || channels === 3)) {
       previewDataUrl = buildPngDataUrl(bytes, width, height, channels);
     }
@@ -175,7 +233,7 @@ function classifyImage(xobj, context) {
     previewDataUrl = null;
   }
 
-  return { ext: 'png', width, height, filters: filterNames, previewDataUrl };
+  return { ext: 'png', width, height, filters: filterNames, colorModel, isCmyk, previewDataUrl };
 }
 
 export async function analyzePdf(buffer) {
@@ -212,29 +270,33 @@ export async function analyzePdf(buffer) {
     });
   });
 
-  const byExt = new Map();
+  const byColorModel = new Map();
   images.forEach((img) => {
-    if (!byExt.has(img.ext)) {
-      byExt.set(img.ext, { ext: img.ext, count: 0, pages: new Set() });
+    if (!byColorModel.has(img.colorModel)) {
+      byColorModel.set(img.colorModel, { model: img.colorModel, isCmyk: img.isCmyk, count: 0, pages: new Set() });
     }
-    const group = byExt.get(img.ext);
+    const group = byColorModel.get(img.colorModel);
     group.count += 1;
     group.pages.add(img.page);
   });
 
-  const extensions = [...byExt.values()]
+  const colorModels = [...byColorModel.values()]
     .map((group) => ({
-      ext: group.ext,
+      model: group.model,
+      isCmyk: group.isCmyk,
       count: group.count,
       pageCount: group.pages.size,
       pages: [...group.pages].sort((a, b) => a - b),
     }))
     .sort((a, b) => b.count - a.count);
 
+  const nonCmykCount = images.filter((img) => !img.isCmyk).length;
+
   return {
     pageCount: pages.length,
     imageCount: images.length,
-    extensions,
+    nonCmykCount,
+    colorModels,
     images,
   };
 }
