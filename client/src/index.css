@@ -1,35 +1,50 @@
+/*
+ * 이 파일은 앱 전체에 공통으로 적용되는 기본 스타일을 정의합니다.
+ * 핵심 아이디어는 "CSS 커스텀 프로퍼티(변수)"를 사용하는 것입니다.
+ * 예를 들어 --accent 라는 변수에 보라색을 저장해두고, 다른 CSS 파일(App.css)에서는
+ * 색상 값을 직접 쓰지 않고 var(--accent) 처럼 "이 변수를 써줘" 라고 참조합니다.
+ * 이렇게 하면 다크모드(어두운 화면) 같은 테마 전환을 훨씬 쉽게 만들 수 있습니다.
+ */
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
+  /* :root 는 문서 전체(HTML 최상단)를 가리키며, 여기 선언한 변수는
+     페이지 어디서든 var(--변수이름) 으로 꺼내 쓸 수 있습니다. (기본: 밝은 테마 색상) */
+  --text: #6b6375; /* 기본 본문 글자색 */
+  --text-h: #08060d; /* 제목(heading) 글자색 - 본문보다 진하게 */
+  --bg: #fff; /* 배경색 */
+  --border: #e5e4e7; /* 테두리 선 색 */
+  --code-bg: #f4f3ec; /* 표/코드 블록 등의 배경색 */
+  --accent: #aa3bff; /* 포인트(강조) 색상 - 버튼, 뱃지 등에 사용 */
+  --accent-bg: rgba(170, 59, 255, 0.1); /* 포인트 색을 아주 연하게 깔아주는 배경 */
+  --accent-border: rgba(170, 59, 255, 0.5); /* 포인트 색 테두리 (버튼 hover 등) */
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* 폰트(글꼴) 종류를 용도별로 미리 정의해둔 변수들 */
+  --sans: system-ui, 'Segoe UI', Roboto, sans-serif; /* 일반 본문용 */
+  --heading: system-ui, 'Segoe UI', Roboto, sans-serif; /* 제목용 */
+  --mono: ui-monospace, Consolas, monospace; /* 고정폭 글꼴 - 코드/확장자 표시용 */
 
-  font: 18px/145% var(--sans);
+  font: 18px/145% var(--sans); /* 글자크기 18px, 줄간격 145%, 위에서 정의한 --sans 폰트 사용 */
   letter-spacing: 0.18px;
-  color-scheme: light dark;
+  color-scheme: light dark; /* 브라우저에게 "이 페이지는 밝은/어두운 테마를 모두 지원해요" 라고 알림 */
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility; /* 글자를 더 또렷하게 렌더링하도록 브라우저에 요청 */
+  -webkit-font-smoothing: antialiased; /* 사파리/크롬 등에서 글자 테두리를 부드럽게 */
+  -moz-osx-font-smoothing: grayscale; /* 파이어폭스(맥) 에서 글자 테두리를 부드럽게 */
 
+  /* 화면 너비가 1024px 이하(태블릿/모바일 정도)로 좁아지면 글자 크기를 살짝 줄입니다. */
   @media (max-width: 1024px) {
     font-size: 16px;
   }
 }
 
+/* 사용자의 운영체제/브라우저 설정이 "다크 모드"일 때 자동으로 적용되는 스타일입니다.
+   위 :root에서 정의했던 변수들을 어두운 화면에 어울리는 색상으로 다시 덮어씁니다.
+   -> 이 변수들을 참조하는 모든 곳(App.css 포함)이 자동으로 다크모드 색상으로 바뀝니다. */
 @media (prefers-color-scheme: dark) {
   :root {
     --text: #9ca3af;
@@ -46,21 +61,22 @@
   }
 
   #social .button-icon {
-    filter: invert(1) brightness(2);
+    filter: invert(1) brightness(2); /* 아이콘 색을 반전시켜서 어두운 배경에서도 잘 보이게 함 */
   }
 }
 
 body {
-  margin: 0;
+  margin: 0; /* 브라우저가 기본으로 넣는 여백을 없애서, 우리가 직접 여백을 조절할 수 있게 함 */
 }
 
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
+  /* index.html의 <div id="root">에 적용되는 스타일 - 실제 React 앱 전체를 감싸는 상자입니다. */
+  width: 1126px; /* 기본 너비 */
+  max-width: 100%; /* 화면이 1126px보다 좁으면 화면 너비에 맞게 줄어듦 (반응형) */
+  margin: 0 auto; /* 좌우 중앙 정렬 */
   text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
+  border-inline: 1px solid var(--border); /* 좌우에만 얇은 테두리 선 */
+  min-height: 100svh; /* 화면 높이(스몰 뷰포트 기준)만큼은 최소한 채우도록 함 */
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -78,6 +94,7 @@ h1 {
   letter-spacing: -1.68px;
   margin: 32px 0;
   @media (max-width: 1024px) {
+    /* 화면이 좁아지면 제목 글자도 함께 작게 줄여서 화면을 벗어나지 않게 함 */
     font-size: 36px;
     margin: 20px 0;
   }
@@ -97,7 +114,7 @@ p {
 
 code,
 .counter {
-  font-family: var(--mono);
+  font-family: var(--mono); /* 고정폭 글꼴 사용 (코드처럼 보이게) */
   display: inline-flex;
   border-radius: 4px;
   color: var(--text-h);
