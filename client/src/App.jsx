@@ -182,31 +182,35 @@ function App() {
             {nonCmykModels.length === 0 && <p className="summary">모든 이미지가 CMYK 색상모델입니다.</p>}
 
             {/* 색상 모델별 요약 표 (RGB가 몇 개, 어느 페이지에 있는지 등).
-                non-CMYK 이미지가 있으면 그것만, 없으면 전체 색상모델(=CMYK만)을 보여줍니다. */}
-            <table className="ext-table">
-              <thead>
-                <tr>
-                  <th>색상모델</th>
-                  <th>이미지 수</th>
-                  <th>포함된 페이지 수</th>
-                  <th>페이지 번호</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* 배열의 각 항목마다 <tr> 한 줄씩 만듭니다.
-                    key는 React가 각 항목을 구별하기 위해 반드시 필요한 값입니다(고유해야 함). */}
-                {(nonCmykModels.length > 0 ? nonCmykModels : result.colorModels).map((group) => (
-                  <tr key={group.model}>
-                    <td>
-                      <span className="ext-badge">{group.model}</span>
-                    </td>
-                    <td>{group.count}</td>
-                    <td>{group.pageCount}</td>
-                    <td>{group.pages.join(', ')}</td>
+                non-CMYK 이미지가 있으면 그것만, 없으면 전체 색상모델(=CMYK만)을 보여줍니다.
+                table-scroll로 감싸는 이유: 태블릿처럼 화면이 좁은데 페이지 번호가 많아서 표가
+                넓어질 때, 화면 전체 레이아웃이 깨지는 대신 표 안에서만 가로 스크롤이 생기게 하기 위함입니다. */}
+            <div className="table-scroll">
+              <table className="ext-table">
+                <thead>
+                  <tr>
+                    <th>색상모델</th>
+                    <th>이미지 수</th>
+                    <th>포함된 페이지 수</th>
+                    <th>페이지 번호</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {/* 배열의 각 항목마다 <tr> 한 줄씩 만듭니다.
+                      key는 React가 각 항목을 구별하기 위해 반드시 필요한 값입니다(고유해야 함). */}
+                  {(nonCmykModels.length > 0 ? nonCmykModels : result.colorModels).map((group) => (
+                    <tr key={group.model}>
+                      <td>
+                        <span className="ext-badge">{group.model}</span>
+                      </td>
+                      <td>{group.count}</td>
+                      <td>{group.pageCount}</td>
+                      <td>{group.pages.join(', ')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             {/* 미리보기는 CMYK가 아닌 이미지가 있을 때만 보여줍니다. */}
             {nonCmykModels.length > 0 && (

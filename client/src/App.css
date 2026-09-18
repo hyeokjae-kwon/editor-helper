@@ -160,11 +160,18 @@
   margin-bottom: 20px;
 }
 
+/* 표가 화면보다 넓어질 때(예: 페이지 번호가 아주 많을 때) 표 영역 안에서만
+   가로 스크롤이 생기게 해주는 바깥 상자. 화면 전체가 옆으로 밀리는 걸 막아줍니다. */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  margin-bottom: 32px;
+}
+
 /* 색상 모델별 요약 표 */
 .ext-table {
   width: 100%;
   border-collapse: collapse; /* 셀 사이 테두리가 두 줄로 겹쳐 보이지 않고 한 줄로 합쳐지게 함 */
-  margin-bottom: 32px;
 }
 
 .ext-table th,
@@ -308,8 +315,35 @@
   font-size: 13px;
 }
 
-/* 화면이 좁아지면(태블릿/모바일) 사이드바를 본문 위로 올려서 세로로 쌓음 */
-@media (max-width: 720px) {
+/* (pointer: coarse) = 마우스가 아니라 손가락 같은 "정밀하지 않은" 입력 장치를 쓴다는 뜻으로,
+   태블릿/스마트폰의 터치스크린을 화면 너비와 상관없이 정확히 짚어낼 수 있습니다.
+   터치로 누르기 편하도록 버튼과 메뉴 항목을 살짝 더 크게 키웁니다. */
+@media (pointer: coarse) {
+  .upload-box button {
+    padding: 13px 24px;
+  }
+
+  .side-nav-item {
+    padding: 13px 16px;
+  }
+}
+
+/* 태블릿 정도로 화면이 좁아지면: 사이드바는 그대로 왼쪽에 두되 좀 더 좁게 줄여서
+   본문이 쓸 수 있는 공간을 넉넉하게 확보합니다. (대부분의 태블릿은 세로 모드여도
+   768px 이상은 되므로, 아래 720px 기준의 "완전히 쌓기"까지는 가지 않습니다.) */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 200px;
+    padding: 24px 16px;
+  }
+
+  .content {
+    padding: 32px 24px 56px;
+  }
+}
+
+/* 화면이 더 좁아지면(스마트폰 정도) 사이드바를 본문 위로 올려서 세로로 쌓음 */
+@media (max-width: 640px) {
   .layout {
     flex-direction: column;
   }
