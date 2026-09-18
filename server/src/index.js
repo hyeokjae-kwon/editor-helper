@@ -3,11 +3,17 @@
 // 역할: 브라우저(프론트엔드)가 PDF 파일을 업로드하면, 그 파일을 분석해서
 //       결과를 JSON 형태로 다시 돌려주는 API 서버입니다.
 
+import path from 'node:path'; // 파일 경로를 다루는 Node.js 내장 모듈 (client/dist 폴더 위치를 찾는 데 사용)
+import { fileURLToPath } from 'node:url'; // ESM에서는 __dirname이 기본으로 없어서, 이 함수로 직접 만들어야 함
 import express from 'express'; // Node.js에서 웹 서버를 쉽게 만들게 해주는 라이브러리
 import cors from 'cors'; // 다른 주소(포트)의 프론트엔드에서 오는 요청을 허용해주는 라이브러리
 import multer from 'multer'; // 파일 업로드(멀티파트 폼 데이터)를 처리해주는 라이브러리
 import { analyzePdf } from './pdfAnalyzer.js'; // 실제 PDF 분석 로직이 들어있는 함수
 import { detectImageFormat, analyzeImageFile } from './imageAnalyzer.js'; // 낱장 이미지 파일(JPG/PNG/TIFF) 분석 로직
+
+// 이 파일(index.js) 자신이 디스크의 어느 폴더에 있는지 알아내기 위한 절차입니다.
+// (CommonJS의 __dirname과 같은 역할이지만, ESM 모듈에서는 직접 이렇게 만들어줘야 합니다.)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // express() 를 호출하면 하나의 "웹 서버 앱"이 만들어집니다.
 // 이 app 객체에 "어떤 주소로 요청이 오면 어떤 함수를 실행할지"를 등록해나갑니다.
@@ -67,6 +73,15 @@ app.post('/api/analyze', upload.single('file'), async (req, res) => {
     res.status(500).json({ error: '파일 분석 중 오류가 발생했습니다.' });
   }
 });
+
+// 프론트엔드(React) 빌드 결과물을 이 서버가 같이 서빙합니다.
+// 배포할 때 client를 따로 호스팅하지 않고, 백엔드 서버 하나로 "정적 파일(HTML/JS/CSS) 응답"과
+// "/api/analyze API 응답"을 둘 다 처리하게 해서 서버를 한 곳에만 올리면 되도록 하기 위함입니다.
+// express.static은 요청 경로가 실제 파일과 일치하면 그 파일을 보내주고(예: /assets/xxx.js),
+// "/" 처럼 폴더 경로면 그 안의 index.html을 자동으로 찾아서 보내줍니다.
+// (로컬 개발 중에는 client/dist가 없을 수 있는데, 그런 경우엔 이 미들웨어가 그냥 아무것도
+//  못 찾고 다음으로 넘어가므로 - 평소처럼 Vite 개발 서버를 따로 켜서 써도 문제없습니다.)
+app.use(express.static(path.join(__dirname, '../../client/dist')));
 
 // 에러 처리 전용 미들웨어입니다.
 // 매개변수가 4개(err, req, res, next)인 함수는 Express에서 특별히

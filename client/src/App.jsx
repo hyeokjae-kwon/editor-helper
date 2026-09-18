@@ -11,9 +11,12 @@ import { useRef, useState } from 'react'
 import './App.css'
 
 // 백엔드(서버) API의 기본 주소입니다.
-// .env 파일 등에서 VITE_API_BASE 값을 설정해두면 그 값을 쓰고,
-// 없으면 로컬 개발용 주소(http://localhost:4000)를 기본값으로 사용합니다.
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:4000'
+// .env 파일 등에서 VITE_API_BASE 값을 설정해두면 그 값을 우선 씁니다.
+// 값이 없으면: 로컬 개발 중(import.meta.env.DEV)에는 별도 포트(4000)에 떠있는 백엔드를 바라보고,
+// 배포된 빌드에서는 빈 문자열을 써서 "지금 이 페이지를 서빙해준 주소"에 그대로 요청하게 만듭니다.
+// (배포 시엔 백엔드가 프론트 빌드 결과까지 같이 서빙하므로 둘이 같은 주소 = 같은 출처가 되고,
+//  그러면 서버 주소를 따로 몰라도 되고 CORS 걱정도 없어집니다.)
+const API_BASE = import.meta.env.VITE_API_BASE ?? (import.meta.env.DEV ? 'http://localhost:4000' : '')
 
 function App() {
   // ---- 상태(state) 선언 부분 ------------------------------------------------

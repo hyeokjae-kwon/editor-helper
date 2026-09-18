@@ -32,7 +32,18 @@ npm run preview  # preview the production build
 
 There is no test suite in either package (`server`'s `npm test` is the default unconfigured stub).
 
-The frontend calls the backend via `VITE_API_BASE` (defaults to `http://localhost:4000` in `client/src/App.jsx`); both dev servers must be running for the app to work end to end.
+The frontend calls the backend via `VITE_API_BASE`. In local dev (`import.meta.env.DEV`) it defaults to `http://localhost:4000`, since Vite and Express run as two separate dev servers on two ports — both must be running for the app to work end to end. In a production build it defaults to an empty string (same-origin relative path) instead, because of how deployment works — see below.
+
+## Deployment
+
+The server serves the built frontend itself (`server/src/index.js` has `express.static(path.join(__dirname, '../../client/dist'))`, added after the `/api/analyze` route so it doesn't shadow it), so the whole app is one deployable web service instead of two. On a platform like Render, connect this GitHub repo and set:
+
+```
+Build Command: npm install --prefix client && npm run build --prefix client && npm install --prefix server
+Start Command: npm start --prefix server
+```
+
+No environment variables are required — `client/src/App.jsx`'s `API_BASE` already resolves to a same-origin relative path (`''`) in a production build (see above), and the server already reads `PORT` from the environment (`server/src/index.js`, falls back to 4000 locally). Pushing to `main` triggers a rebuild+redeploy on platforms with GitHub auto-deploy enabled (e.g. Render); HTTPS on the platform's subdomain is automatic, no extra config.
 
 ## Architecture
 
