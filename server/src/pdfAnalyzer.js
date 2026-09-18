@@ -28,6 +28,7 @@ import {
   PDFArray, // PDF의 배열(리스트)을 표현하는 타입
   PDFRawStream, // 압축된 원본 바이트 데이터를 담고 있는 스트림(이미지 데이터 등)을 표현하는 타입
   PDFNumber, // PDF 안의 숫자 값을 표현하는 타입
+  PDFRef, // 간접 참조("12 0 R" 같은 것)를 표현하는 타입. Form XObject 순환 참조 감지에 사용
 } from 'pdf-lib'; // PDF 파일 내부 구조를 직접 읽고 쓸 수 있게 해주는 라이브러리
 
 // 이미지 스트림에 적용된 필터(압축 방식) 이름 -> 실제 파일 확장자로 변환하는 매핑표입니다.
@@ -368,6 +369,41 @@ function classifyImage(xobj, context) {
   return { ext: 'png', width, height, filters: filterNames, colorModel, isCmyk, previewDataUrl };
 }
 
+// ----------------------------------------------------------------------------
+// 리소스 딕셔너리 안의 XObject들을 훑으면서 이미지를 찾아 images 배열에 채워 넣는 함수입니다.
+// XObject 중 Subtype이 "Form"인 것(투명도 그룹, 클리핑마스크, 레이어 등으로 콘텐츠를 감싸는 컨테이너)은
+// 그 자체가 이미지가 아니라, 내부에 자기만의 Resources/XObject를 또 가지고 있을 수 있습니다.
+// 즉 진짜 이미지가 Form 안에 중첩되어 있을 수 있으므로, 이 함수가 스스로를 재귀 호출해서
+// Form 내부까지 파고듭니다. (안 그러면 Form으로 감싸진 non-CMYK 이미지를 통째로 놓치게 됩니다.)
+// visited는 순환 참조(Form이 자기 자신을 가리키는 손상되었거나 악의적인 PDF)로 인한
+// 무한 재귀를 막기 위한 안전장치입니다.
+function collectImagesFromResources(resources, context, pageNumber, images, visited) {
+  if (!resources) return;
+  const xobjects = resources.lookupMaybe(PDFName.of('XObject'), PDFDict);
+  if (!xobjects) return;
+
+  xobjects.keys().forEach((key) => {
+    const ref = xobjects.get(key);
+    if (ref instanceof PDFRef) {
+      const refKey = ref.toString();
+      if (visited.has(refKey)) return; // 이미 방문한 객체면 순환 참조이므로 건너뜀
+      visited.add(refKey);
+    }
+
+    const xobj = context.lookup(ref);
+    if (!(xobj instanceof PDFRawStream)) return;
+
+    const subtype = nameOf(xobj.dict.lookup(PDFName.of('Subtype')));
+    if (subtype === 'Image') {
+      const info = classifyImage(xobj, context);
+      images.push({ id: `${pageNumber}-${key.decodeText()}`, page: pageNumber, ...info });
+    } else if (subtype === 'Form') {
+      const formResources = xobj.dict.lookupMaybe(PDFName.of('Resources'), PDFDict);
+      collectImagesFromResources(formResources, context, pageNumber, images, visited);
+    }
+  });
+}
+
 // ============================================================================
 // 이 파일에서 유일하게 외부(index.js)로 내보내는 함수입니다.
 // PDF 파일 전체의 바이트(buffer)를 받아서, 안에 들어있는 모든 이미지를 찾아
@@ -391,34 +427,10 @@ export async function analyzePdf(buffer) {
 
     // 페이지의 리소스(그 페이지에서 쓰는 폰트/이미지 등 자원 모음)를 가져옵니다.
     const resources = page.node.Resources();
-    if (!resources) return; // 리소스가 없는 페이지는 이미지도 없다는 뜻이므로 건너뜁니다.
 
-    // 리소스 중에서 "XObject" 항목(이미지나 폼 등의 외부 객체 모음)을 꺼냅니다.
-    const xobjects = resources.lookupMaybe(PDFName.of('XObject'), PDFDict);
-    if (!xobjects) return; // XObject가 없으면 이 페이지엔 이미지가 없습니다.
-
-    // XObject 딕셔너리 안의 모든 key(예: /Im0, /Im1 ...)를 하나씩 확인합니다.
-    xobjects.keys().forEach((key) => {
-      const ref = xobjects.get(key); // 이 key가 가리키는 참조값
-      const xobj = context.lookup(ref); // 참조를 실제 객체로 변환
-
-      // 이 XObject가 "원본 압축 스트림(PDFRawStream)" 형태가 아니면 이미지가 아니므로 건너뜁니다.
-      if (!(xobj instanceof PDFRawStream)) return;
-
-      // XObject 중에는 이미지 말고도 "Form"(다른 콘텐츠를 재사용하는 것) 등이 있을 수 있으므로,
-      // Subtype이 정확히 "Image"인 것만 실제 이미지로 취급합니다.
-      const subtype = xobj.dict.lookup(PDFName.of('Subtype'));
-      if (nameOf(subtype) !== 'Image') return;
-
-      // 진짜 이미지를 찾았으면, 위에서 만든 classifyImage 함수로 자세히 분석합니다.
-      const info = classifyImage(xobj, context);
-      images.push({
-        // id: 같은 페이지에 이미지가 여러 개 있어도 구분할 수 있도록 "페이지번호-키이름" 형태로 생성
-        id: `${pageNumber}-${key.decodeText()}`,
-        page: pageNumber,
-        ...info, // ext, width, height, filters, colorModel, isCmyk, previewDataUrl 등을 모두 펼쳐서 담음
-      });
-    });
+    // 이미지는 페이지 리소스에 직접 있을 수도, Form XObject(투명도 그룹/클리핑마스크/레이어 등) 안에
+    // 중첩되어 있을 수도 있으므로 재귀 함수로 훑습니다. visited는 페이지마다 새로 시작합니다.
+    collectImagesFromResources(resources, context, pageNumber, images, new Set());
   });
 
   // 이제 찾아낸 이미지들을 "색상 모델별로" 묶어서 요약 통계를 만듭니다.

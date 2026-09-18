@@ -7,6 +7,7 @@ import express from 'express'; // Node.js에서 웹 서버를 쉽게 만들게 �
 import cors from 'cors'; // 다른 주소(포트)의 프론트엔드에서 오는 요청을 허용해주는 라이브러리
 import multer from 'multer'; // 파일 업로드(멀티파트 폼 데이터)를 처리해주는 라이브러리
 import { analyzePdf } from './pdfAnalyzer.js'; // 실제 PDF 분석 로직이 들어있는 함수
+import { detectImageFormat, analyzeImageFile } from './imageAnalyzer.js'; // 낱장 이미지 파일(JPG/PNG/TIFF) 분석 로직
 
 // express() 를 호출하면 하나의 "웹 서버 앱"이 만들어집니다.
 // 이 app 객체에 "어떤 주소로 요청이 오면 어떤 함수를 실행할지"를 등록해나갑니다.
@@ -27,23 +28,27 @@ const upload = multer({
 app.use(cors());
 
 // "POST /api/analyze" 주소로 요청이 들어왔을 때 실행되는 부분입니다.
-// upload.single('pdf') -> 요청에 담긴 파일 중 필드 이름이 'pdf'인 파일 하나를 꺼내서
+// upload.single('file') -> 요청에 담긴 파일 중 필드 이름이 'file'인 파일 하나를 꺼내서
 //                         req.file 에 담아줍니다.
 // async (req, res) => {...} -> 실제 요청을 처리하는 함수. req(요청), res(응답) 두 값을 받습니다.
-app.post('/api/analyze', upload.single('pdf'), async (req, res) => {
+app.post('/api/analyze', upload.single('file'), async (req, res) => {
   // 파일이 아예 안 들어온 경우 (사용자가 파일 없이 요청을 보낸 경우) 에러 응답
   if (!req.file) {
-    return res.status(400).json({ error: 'PDF 파일이 필요합니다.' });
+    return res.status(400).json({ error: '파일이 필요합니다.' });
   }
-  // 업로드된 파일이 PDF가 아닌 경우 (예: 이미지, 텍스트 파일 등) 에러 응답
-  if (req.file.mimetype !== 'application/pdf') {
-    return res.status(400).json({ error: 'PDF 파일만 업로드할 수 있습니다.' });
+
+  // mimetype/확장자 대신 파일의 실제 바이트(매직 넘버)로 형식을 판별합니다.
+  // (브라우저가 보내주는 mimetype은 부정확하거나 없을 수 있어서 더 신뢰할 수 있는 방법)
+  const isPdf = req.file.buffer.subarray(0, 5).toString('ascii') === '%PDF-';
+  const imageFormat = isPdf ? null : detectImageFormat(req.file.buffer);
+  if (!isPdf && !imageFormat) {
+    return res.status(400).json({ error: 'PDF 또는 이미지(JPG/PNG/TIFF) 파일만 업로드할 수 있습니다.' });
   }
 
   try {
-    // 실제로 PDF 내용을 분석하는 함수를 호출합니다.
-    // req.file.buffer 에는 업로드된 PDF 파일의 실제 바이트(이진 데이터)가 들어있습니다.
-    const result = await analyzePdf(req.file.buffer);
+    // 실제로 파일 내용을 분석하는 함수를 호출합니다.
+    // req.file.buffer 에는 업로드된 파일의 실제 바이트(이진 데이터)가 들어있습니다.
+    const result = isPdf ? await analyzePdf(req.file.buffer) : analyzeImageFile(req.file.buffer, imageFormat);
 
     // 참고(중요): multer가 내부적으로 사용하는 busboy 라이브러리는
     // 파일 이름(originalname)을 기본적으로 'latin1'이라는 옛날 방식의 문자 인코딩으로 해석합니다.
@@ -56,10 +61,10 @@ app.post('/api/analyze', upload.single('pdf'), async (req, res) => {
     // { fileName, ...result } 는 { fileName: fileName, (result 안의 모든 속성들) } 과 같은 뜻입니다.
     res.json({ fileName, ...result });
   } catch (err) {
-    // PDF 분석 도중 예상치 못한 에러가 발생하면 서버 콘솔에 로그를 남기고
+    // 분석 도중 예상치 못한 에러가 발생하면 서버 콘솔에 로그를 남기고
     // 클라이언트(브라우저)에는 500번(서버 내부 오류) 상태 코드로 에러 메시지를 응답합니다.
     console.error(err);
-    res.status(500).json({ error: 'PDF 분석 중 오류가 발생했습니다.' });
+    res.status(500).json({ error: '파일 분석 중 오류가 발생했습니다.' });
   }
 });
 
