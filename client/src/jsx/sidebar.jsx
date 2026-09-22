@@ -5,25 +5,30 @@
 // 알리기만 합니다. props로 값을 받고 이벤트만 부모에게 전달하는 흔한 React 패턴입니다.
 // ============================================================================
 
+// 메뉴 목록. 항목이 늘어나면 이 배열에 { id, label }만 추가하면 되고,
+// 아래 렌더링 부분(.map)은 손댈 필요가 없습니다.
+// id는 view 상태값(영문, app.jsx의 pages 객체 키와 맞춰야 함)이고,
+// label은 사이드바 화면에 실제로 보이는 글자입니다 - 화면에 보이는 메뉴명은 항상 한글로 씁니다.
+const MENU_ITEMS = [
+  { id: 'home', label: '홈' },
+  { id: 'imgfind', label: '색상 분석' },
+  { id: 'spellFind', label: '맞춤법 분석' },
+]
+
 function Sidebar({ view, onNavigate }) {
   return (
     <aside className="sidebar">
       <nav className="side-nav">
-        {/* 메뉴가 늘어나면 이 배열에 { id, label } 형태로 항목만 추가하면 됩니다. */}
-        <div
-          className={`side-nav-item${view === 'home' ? ' active' : ''}`}
-          aria-current={view === 'home' ? 'page' : undefined}
-          onClick={() => onNavigate('home')}
-        >
-          홈
-        </div>
-        <div
-          className={`side-nav-item${view === 'imgfind' ? ' active' : ''}`}
-          aria-current={view === 'imgfind' ? 'page' : undefined}
-          onClick={() => onNavigate('imgfind')}
-        >
-          imgfind
-        </div>
+        {MENU_ITEMS.map((item) => (
+          <div
+            key={item.id}
+            className={`side-nav-item${view === item.id ? ' active' : ''}`}
+            aria-current={view === item.id ? 'page' : undefined}
+            onClick={() => onNavigate(item.id)}
+          >
+            {item.label}
+          </div>
+        ))}
       </nav>
     </aside>
   )

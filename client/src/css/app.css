@@ -121,6 +121,57 @@
   margin-bottom: 28px;
 }
 
+/* spellFind 화면 맨 위의 "조회조건"처럼 생긴 영역. 기준자료 파일을 고르면
+   그 파일명만 간단히 보여줌 - 일반 업로드 박스(.upload-box)와 구분되도록
+   배경색을 깔고 테두리를 둥글게 줘서 "지금 기준으로 잡힌 조건" 느낌을 줍니다. */
+.criteria-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px; /* input[type=file] 버튼도 이 크기를 물려받아 함께 작아짐 */
+}
+
+/* "기준자료"라는 라벨을 뱃지(.ext-badge)와 같은 톤의 알약 모양으로 보여줌 */
+.criteria-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: var(--accent-bg);
+  padding: 2px 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+/* 고른 기준자료 파일의 이름 */
+.criteria-filename {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-h);
+}
+
+/* 검사대상 영역은 기준자료와 모양은 같지만, "기준(파란색)과는 다른 대상"이라는 걸
+   한눈에 구분할 수 있도록 라벨/파일명 색만 붉은 톤으로 바꿔줍니다. */
+.criteria-box--target {
+  border-color: rgba(229, 72, 77, 0.35);
+}
+
+.criteria-box--target .criteria-label {
+  color: #e5484d;
+  background: rgba(229, 72, 77, 0.1);
+}
+
+.criteria-box--target .criteria-filename {
+  color: #e5484d;
+}
+
 /* 파일 선택 input + "분석하기"/"초기화" 버튼들이 나란히 놓인 영역 */
 .upload-box {
   display: flex;

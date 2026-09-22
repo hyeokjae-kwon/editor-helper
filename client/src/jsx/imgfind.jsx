@@ -133,7 +133,7 @@ function Imgfind() {
   // app.jsx가 이미 <main className="content">로 감싸주므로, 여기서는 그 안쪽 내용만 돌려줍니다.
   return (
     <>
-      <h2 className="page-title">imgfind</h2>
+      <h2 className="page-title">색상 분석</h2>
       <p className="subtitle">PDF 또는 이미지(JPG/PNG/TIFF) 파일을 업로드하면 안에 포함된 이미지 중 CMYK가 아닌 것을 찾아드려요.</p>
 
       {/* 파일 선택 + 버튼들이 모여있는 영역 */}
