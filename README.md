@@ -53,7 +53,7 @@ Start Command: npm start --prefix server
 ## 프로젝트 구조
 
 ```
-imgfind/
+editor-helper/
 ├── client/            # 프론트엔드 (React + Vite)
 │   └── src/
 │       ├── App.jsx    # 화면 전체를 담당하는 단 하나의 컴포넌트
