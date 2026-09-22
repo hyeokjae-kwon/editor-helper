@@ -1,20 +1,49 @@
 /*
- * 이 파일은 App.jsx에서 사용하는 className들에 대한 스타일을 정의합니다.
- * 각 클래스 이름이 App.jsx의 어느 부분(HTML 태그)에 붙어있는지 참고하며 보면 이해하기 쉽습니다.
+ * 이 파일은 app.jsx와 그 하위 컴포넌트(topFrame/sidebar/bottomFrame/home/imgfind)에서
+ * 사용하는 className들에 대한 스타일을 정의합니다.
+ * 각 클래스 이름이 app.jsx의 어느 부분(HTML 태그)에 붙어있는지 참고하며 보면 이해하기 쉽습니다.
  * 색상은 대부분 var(--xxx) 형태로, index.css에 정의된 공통 변수를 가져다 씁니다.
  * (변수를 쓰면 다크모드일 때 index.css의 변수 값만 바뀌어도 여기 스타일이 자동으로 따라 바뀝니다.)
  */
 
-/* 앱 전체를 감싸는 최상위 영역: 왼쪽 사이드바 + 오른쪽 본문(main.content)을 가로로 배치 */
+/* 앱 전체를 감싸는 최상위 영역: topFrame(상단바) / body-row(사이드바+본문) / bottomFrame(하단바)를
+   위에서 아래로 세로로 쌓습니다. */
 .layout {
   flex: 1; /* 부모(index.css의 #root)가 flex 컨테이너이므로, 남은 공간을 모두 차지하게 함 */
+  display: flex;
+  flex-direction: column;
+}
+
+/* 상단바: 화면 맨 위를 가로지르는 얇은 바. 지금은 브랜드만 들어있음 */
+.top-frame {
+  flex-shrink: 0;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  box-sizing: border-box;
+}
+
+/* 하단바: 화면 맨 아래를 가로지르는 얇은 바 */
+.bottom-frame {
+  flex-shrink: 0;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+  box-sizing: border-box;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* 상단바와 하단바 사이: 왼쪽 사이드바 + 오른쪽 본문(main.content)을 가로로 배치하고,
+   남는 세로 공간을 모두 차지함 */
+.body-row {
+  flex: 1;
+  min-height: 0; /* flex 자식이 내용 때문에 부모 높이를 넘어서는 것을 방지 */
   display: flex;
   flex-direction: row;
   align-items: stretch;
 }
 
-/* 왼쪽 사이드바: 브랜드(큰 제목) + 메뉴. 지금은 메뉴가 한 개뿐이지만
-   기능이 늘어나도 .side-nav 안에 항목만 추가하면 되는 구조라 확장하기 쉽습니다. */
+/* 왼쪽 사이드바: 메뉴(네비게이션)만 담당. 메뉴가 늘어나도 .side-nav 안에
+   항목만 추가하면 되는 구조라 확장하기 쉽습니다. */
 .sidebar {
   width: 240px;
   flex-shrink: 0; /* 화면이 좁아져도 사이드바 너비는 줄어들지 않게 함 */
@@ -32,7 +61,6 @@
   font-weight: 700;
   letter-spacing: -0.4px;
   color: var(--text-h);
-  margin-bottom: 32px;
 }
 
 /* 브랜드 이름 앞의 작은 원형 마크 (참고 이미지의 로고 마크에서 따온 장식 요소) */
@@ -57,6 +85,7 @@
   border-radius: 999px; /* 알약(pill) 모양 - 참고 이미지의 둥근 버튼/뱃지 톤을 따름 */
   font-size: 15px;
   color: var(--text);
+  cursor: pointer; /* 클릭해서 화면을 전환할 수 있는 메뉴임을 마우스 포인터 모양으로 알려줌 */
 }
 
 /* 지금 보고 있는 메뉴(활성 상태)를 포인트 색으로 강조 */
@@ -257,7 +286,7 @@
   cursor: zoom-in; /* 클릭하면 확대해서 볼 수 있다는 걸 커서 모양으로 알려줌 */
 }
 
-/* 이미지 확대보기 모달 (App.jsx의 <dialog>). <dialog>는 열리면 브라우저가 화면 중앙에
+/* 이미지 확대보기 모달 (app.jsx의 <dialog>). <dialog>는 열리면 브라우저가 화면 중앙에
    자동으로 배치해주고, ::backdrop 의사요소로 뒷배경도 알아서 그려줍니다. */
 .preview-dialog {
   position: relative; /* 안의 닫기(X) 버튼을 이 기준으로 오른쪽 위에 붙이기 위함 */
@@ -344,7 +373,7 @@
 
 /* 화면이 더 좁아지면(스마트폰 정도) 사이드바를 본문 위로 올려서 세로로 쌓음 */
 @media (max-width: 640px) {
-  .layout {
+  .body-row {
     flex-direction: column;
   }
 
@@ -355,12 +384,13 @@
     padding: 16px 20px;
   }
 
-  .brand {
-    margin-bottom: 12px;
-  }
-
   .side-nav {
     flex-direction: row;
+  }
+
+  .top-frame,
+  .bottom-frame {
+    padding: 12px 20px;
   }
 
   .content {
